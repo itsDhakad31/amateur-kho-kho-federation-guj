@@ -1,0 +1,7 @@
+{
+  "name": "Amateur Kho-Kho Federation Gujarat",
+  "description": "Official platform for the Amateur Kho-Kho Federation Gujarat (AKKFG), featuring player registrations, tournament management, news, and governance.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
