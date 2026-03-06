@@ -20,11 +20,154 @@ import {
   LogOut,
   User as UserIcon,
   Plus,
-  Trash2
+  Trash2,
+  FileText
 } from 'lucide-react';
 import { NewsItem, EventItem, RegistrationData, User } from './types';
 
 // --- Components ---
+
+const DbStatusBanner = () => {
+  return null;
+};
+
+const ViewRegistrationModal = ({ reg, onClose }: { reg: RegistrationData | null, onClose: () => void }) => {
+  if (!reg) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="bg-akkfg-blue p-6 text-white flex justify-between items-center sticky top-0 z-10">
+          <div>
+            <h2 className="text-2xl font-bold">{reg.name}</h2>
+            <p className="text-white/70 text-sm font-mono">{reg.unique_id || 'ID Pending'}</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white p-2 bg-white/10 rounded-full">
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="p-8 space-y-8">
+          {/* Personal Info */}
+          <section>
+            <h3 className="text-lg font-bold text-akkfg-orange mb-4 border-b border-slate-100 pb-2">Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Role</label>
+                <p className="font-medium">{reg.role}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Email</label>
+                <p className="font-medium">{reg.email}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Mobile</label>
+                <p className="font-medium">{reg.mobile}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Date of Birth</label>
+                <p className="font-medium">{reg.dob}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Gender</label>
+                <p className="font-medium">{reg.gender}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Experience</label>
+                <p className="font-medium">{reg.experience} Years</p>
+              </div>
+              <div className="md:col-span-3">
+                <label className="text-xs font-bold text-slate-400 uppercase">Address</label>
+                <p className="font-medium">{reg.address_city}, {reg.address_country}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Additional Info */}
+          <section>
+            <h3 className="text-lg font-bold text-akkfg-orange mb-4 border-b border-slate-100 pb-2">Qualifications</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {reg.role === 'Student' ? (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase">Level of Passing</label>
+                    <p className="font-medium">{reg.level_passing || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase">Year of Passing</label>
+                    <p className="font-medium">{reg.year_passing || 'N/A'}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase">Coaching Certification</label>
+                    <p className="font-medium">{reg.coaching_cert || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase">Referee Certification</label>
+                    <p className="font-medium">{reg.referee_cert || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase">Education</label>
+                    <p className="font-medium">{reg.edu_qualification || 'N/A'}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Documents */}
+          <section>
+            <h3 className="text-lg font-bold text-akkfg-orange mb-4 border-b border-slate-100 pb-2">Documents</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Photo', url: reg.doc_photo },
+                { label: 'Aadhar Card', url: reg.doc_aadhar },
+                { label: 'PAN Card', url: reg.doc_pan },
+                { label: 'Birth Certificate', url: reg.doc_birth }
+              ].map((doc, i) => (
+                <div key={i} className="border border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors relative group">
+                  <div className="bg-slate-100 w-full h-32 rounded-lg flex items-center justify-center mx-auto mb-3 text-slate-400 overflow-hidden">
+                    {doc.url && doc.url.startsWith('data:image') ? (
+                      <img src={doc.url} alt={doc.label} className="w-full h-full object-cover" />
+                    ) : (
+                      <FileText size={32} />
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-slate-600 mb-2">{doc.label}</p>
+                  {doc.url ? (
+                    <a 
+                      href={doc.url} 
+                      download={`${reg.name}_${doc.label}`}
+                      className="text-xs w-full py-2 bg-akkfg-blue text-white rounded-lg font-bold hover:bg-akkfg-blue/90 transition-colors inline-flex items-center justify-center gap-2"
+                    >
+                      <Download size={12} /> Download
+                    </a>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">Not Uploaded</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: () => void, onLogin: (user: User, token: string) => void }) => {
   const [isRegister, setIsRegister] = useState(false);
@@ -396,8 +539,15 @@ const Home = ({ setActiveTab }: { setActiveTab: (tab: string) => void }) => {
   const [events, setEvents] = useState<EventItem[]>([]);
 
   useEffect(() => {
-    fetch('/api/news').then(res => res.json()).then(setNews);
-    fetch('/api/events').then(res => res.json()).then(setEvents);
+    fetch('/api/news')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) ? setNews(data) : setNews([]))
+      .catch(() => setNews([]));
+      
+    fetch('/api/events')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) ? setEvents(data) : setEvents([]))
+      .catch(() => setEvents([]));
   }, []);
 
   return (
@@ -487,7 +637,7 @@ const Home = ({ setActiveTab }: { setActiveTab: (tab: string) => void }) => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {news.map((item, i) => (
+          {Array.isArray(news) && news.map((item, i) => (
             <motion.div 
               key={item.id}
               initial={{ opacity: 0, scale: 0.95 }}
@@ -531,7 +681,7 @@ const Home = ({ setActiveTab }: { setActiveTab: (tab: string) => void }) => {
           </div>
           
           <div className="space-y-4">
-            {events.map((event, i) => (
+            {Array.isArray(events) && events.map((event, i) => (
               <motion.div 
                 key={event.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -732,6 +882,24 @@ const Registration = ({ setActiveTab }: { setActiveTab: (tab: string) => void })
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<RegistrationData | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Limit to 2MB (Base64 adds ~33% overhead, so 4 files * 2MB * 1.33 = ~10.6MB < 16MB limit)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("File size must be less than 2MB");
+        e.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -739,6 +907,8 @@ const Registration = ({ setActiveTab }: { setActiveTab: (tab: string) => void })
       alert("Please accept the terms and conditions");
       return;
     }
+
+    setLoading(true);
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
@@ -755,6 +925,8 @@ const Registration = ({ setActiveTab }: { setActiveTab: (tab: string) => void })
       }
     } catch (err) {
       alert("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -887,23 +1059,27 @@ const Registration = ({ setActiveTab }: { setActiveTab: (tab: string) => void })
           {/* Documents */}
           <div className="space-y-6">
             <h3 className="text-xl text-akkfg-blue font-bold border-l-4 border-akkfg-orange pl-4">Documents Upload</h3>
-            <p className="text-xs text-slate-400 italic">Please provide links or filenames for the following documents (in a real app, this would be a file upload).</p>
+            <p className="text-xs text-slate-400 italic">Please upload clear images/PDFs (Max 4MB each).</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Photograph URL</label>
-                <input required type="text" placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-akkfg-orange" value={formData.doc_photo} onChange={e => setFormData({...formData, doc_photo: e.target.value})} />
+                <label className="text-sm font-bold text-slate-700">Photograph</label>
+                <input required type="file" accept="image/*" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-akkfg-orange/10 file:text-akkfg-orange hover:file:bg-akkfg-orange/20" onChange={e => handleFileChange(e, 'doc_photo')} />
+                {formData.doc_photo && <p className="text-xs text-emerald-600 font-bold">File Selected</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Aadhar Card Number/Link</label>
-                <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-akkfg-orange" value={formData.doc_aadhar} onChange={e => setFormData({...formData, doc_aadhar: e.target.value})} />
+                <label className="text-sm font-bold text-slate-700">Aadhar Card</label>
+                <input required type="file" accept="image/*,application/pdf" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-akkfg-orange/10 file:text-akkfg-orange hover:file:bg-akkfg-orange/20" onChange={e => handleFileChange(e, 'doc_aadhar')} />
+                {formData.doc_aadhar && <p className="text-xs text-emerald-600 font-bold">File Selected</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">PAN Card Number/Link</label>
-                <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-akkfg-orange" value={formData.doc_pan} onChange={e => setFormData({...formData, doc_pan: e.target.value})} />
+                <label className="text-sm font-bold text-slate-700">PAN Card</label>
+                <input required type="file" accept="image/*,application/pdf" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-akkfg-orange/10 file:text-akkfg-orange hover:file:bg-akkfg-orange/20" onChange={e => handleFileChange(e, 'doc_pan')} />
+                {formData.doc_pan && <p className="text-xs text-emerald-600 font-bold">File Selected</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Birth Certificate Number/Link</label>
-                <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-akkfg-orange" value={formData.doc_birth} onChange={e => setFormData({...formData, doc_birth: e.target.value})} />
+                <label className="text-sm font-bold text-slate-700">Birth Certificate</label>
+                <input required type="file" accept="image/*,application/pdf" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-akkfg-orange/10 file:text-akkfg-orange hover:file:bg-akkfg-orange/20" onChange={e => handleFileChange(e, 'doc_birth')} />
+                {formData.doc_birth && <p className="text-xs text-emerald-600 font-bold">File Selected</p>}
               </div>
             </div>
           </div>
@@ -936,7 +1112,10 @@ const Registration = ({ setActiveTab }: { setActiveTab: (tab: string) => void })
 const Events = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   useEffect(() => {
-    fetch('/api/events').then(res => res.json()).then(setEvents);
+    fetch('/api/events')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) ? setEvents(data) : setEvents([]))
+      .catch(() => setEvents([]));
   }, []);
 
   return (
@@ -947,7 +1126,7 @@ const Events = () => {
       </div>
       
       <div className="grid grid-cols-1 gap-6">
-        {events.map((event) => (
+        {Array.isArray(events) && events.map((event) => (
           <div key={event.id} className="bg-white p-8 rounded-3xl border border-slate-200 flex flex-col md:flex-row gap-8 items-center">
             <div className="bg-akkfg-blue text-white p-6 rounded-2xl text-center min-w-[120px]">
               <span className="block text-4xl font-bold">{new Date(event.date).getDate()}</span>
@@ -1187,6 +1366,7 @@ const AdminPanel = () => {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showTournamentForm, setShowTournamentForm] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
   const [newTournament, setNewTournament] = useState({
     title: '',
     date: '',
@@ -1214,11 +1394,11 @@ const AdminPanel = () => {
       const statsData = await statsRes.json();
       const eventsData = await eventsRes.json();
       
-      console.log("AdminPanel: Data fetched successfully", { regs: regsData.length, events: eventsData.length });
+      console.log("AdminPanel: Data fetched successfully");
       
-      setRegistrations(regsData);
+      setRegistrations(Array.isArray(regsData) ? regsData : []);
       setStats(statsData);
-      setEvents(eventsData);
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
     } catch (err) {
       console.error("AdminPanel: Fetch data error:", err);
       alert("Failed to refresh data. Please check console for details.");
@@ -1242,6 +1422,29 @@ const AdminPanel = () => {
       body: JSON.stringify({ status })
     });
     fetchData();
+  };
+
+  const handleDeletePlayer = async (id: number) => {
+    if (!window.confirm('Are you sure you want to remove this player registration? This action cannot be undone.')) return;
+    
+    try {
+      const token = localStorage.getItem('akkfg_token');
+      const response = await fetch(`/api/admin/registrations/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        alert("Player registration removed successfully!");
+        fetchData();
+      } else {
+        const result = await response.json();
+        alert(`Error: ${result.error || 'Failed to remove player'}`);
+      }
+    } catch (err) {
+      console.error("Delete player error:", err);
+      alert("Failed to remove player. Please check your connection.");
+    }
   };
 
   const handleCreateTournament = async (e: React.FormEvent) => {
@@ -1372,11 +1575,18 @@ const AdminPanel = () => {
         </div>
       )}
 
+      {selectedPlayer && (
+        <ViewRegistrationModal 
+          reg={selectedPlayer} 
+          onClose={() => setSelectedPlayer(null)} 
+        />
+      )}
+
       <div className="space-y-12">
         <section>
           <div className="flex items-center gap-4 mb-6">
             <h3 className="text-2xl font-bold text-akkfg-blue">Federation Registrations</h3>
-            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{registrations.length}</span>
+            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{Array.isArray(registrations) ? registrations.length : 0}</span>
           </div>
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
@@ -1391,7 +1601,7 @@ const AdminPanel = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {registrations.map((reg: any) => (
+                  {Array.isArray(registrations) && registrations.map((reg: any) => (
                     <tr key={reg.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <p className="font-bold text-akkfg-blue">{reg.name}</p>
@@ -1408,7 +1618,13 @@ const AdminPanel = () => {
                           {reg.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right space-x-2">
+                      <td className="px-6 py-4 text-right space-x-3">
+                        <button 
+                          onClick={() => setSelectedPlayer(reg)}
+                          className="text-xs font-bold text-akkfg-blue hover:underline"
+                        >
+                          View
+                        </button>
                         {reg.status === 'Pending' && (
                           <>
                             <button 
@@ -1425,6 +1641,13 @@ const AdminPanel = () => {
                             </button>
                           </>
                         )}
+                        <button 
+                          onClick={() => handleDeletePlayer(reg.id)}
+                          className="text-xs font-bold text-slate-400 hover:text-red-600 transition-colors"
+                          title="Remove Registration"
+                        >
+                          <Trash2 size={14} className="inline" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1437,10 +1660,10 @@ const AdminPanel = () => {
         <section className="mt-16">
           <div className="flex items-center gap-4 mb-6">
             <h3 className="text-2xl font-bold text-akkfg-blue">Manage Tournaments</h3>
-            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{events.length}</span>
+            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{Array.isArray(events) ? events.length : 0}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event: any) => (
+            {Array.isArray(events) && events.map((event: any) => (
               <div key={event.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
                 <div className="flex justify-between items-start mb-4">
                   <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${event.status === 'Upcoming' ? 'bg-blue-100 text-blue-700' : event.status === 'Ongoing' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -1471,7 +1694,7 @@ const AdminPanel = () => {
                 </div>
               </div>
             ))}
-            {events.length === 0 && (
+            {Array.isArray(events) && events.length === 0 && (
               <div className="col-span-full py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-400">
                 No tournaments created yet.
               </div>
@@ -1486,12 +1709,79 @@ const AdminPanel = () => {
 
 // --- Main App ---
 
+const LoadingScreen = () => (
+  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-50">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5 }}
+      className="flex flex-col items-center"
+    >
+      <div className="w-24 h-24 mb-8 relative">
+        <motion.div
+          className="absolute inset-0 border-4 border-slate-200 rounded-full"
+        />
+        <motion.div
+          className="absolute inset-0 border-4 border-akkfg-orange rounded-full border-t-transparent"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Trophy className="text-akkfg-blue" size={32} />
+        </div>
+      </div>
+      <h2 className="text-2xl font-bold text-akkfg-blue mb-2">AKKFG</h2>
+      <p className="text-slate-500 font-medium animate-pulse">Connecting to server...</p>
+    </motion.div>
+  </div>
+);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [user, setUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isServerReady, setIsServerReady] = useState(false);
 
   useEffect(() => {
+    const checkServerHealth = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.db === 'connected') {
+            setIsServerReady(true);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error("Server health check failed", e);
+      }
+      return false;
+    };
+
+    const initApp = async () => {
+      // Initial check
+      const ready = await checkServerHealth();
+      if (ready) {
+        // If ready, check auth
+        checkAuth();
+      } else {
+        // If not ready, poll every 2 seconds
+        const interval = setInterval(async () => {
+          const isReady = await checkServerHealth();
+          if (isReady) {
+            clearInterval(interval);
+            checkAuth();
+          }
+        }, 2000);
+        return () => clearInterval(interval);
+      }
+    };
+
+    initApp();
+  }, []);
+
+  const checkAuth = () => {
     const token = localStorage.getItem('akkfg_token');
     if (token) {
       fetch('/api/auth/me', {
@@ -1504,7 +1794,7 @@ export default function App() {
       })
       .catch(() => localStorage.removeItem('akkfg_token'));
     }
-  }, []);
+  };
 
   const handleLogin = (userData: User, token: string) => {
     setUser(userData);
@@ -1521,8 +1811,13 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [activeTab]);
 
+  if (!isServerReady) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
+      <DbStatusBanner />
       <Navbar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -1552,7 +1847,16 @@ export default function App() {
                 onCompleteRegistration={() => setActiveTab('register')} 
               />
             )}
-            {activeTab === 'admin' && user?.role === 'Admin' && <AdminPanel />}
+            {activeTab === 'admin' && user?.role === 'Admin' && (
+              <>
+                <AdminPanel />
+                {/* ViewRegistrationModal is handled inside AdminPanel state, but we need to lift state up or pass props if we want it global. 
+                    However, AdminPanel has its own state for selectedPlayer. 
+                    Wait, AdminPanel is a component. I should add the modal INSIDE AdminPanel or pass it down.
+                    Let's check AdminPanel definition again.
+                */}
+              </>
+            )}
           </motion.div>
         </AnimatePresence>
       </main>

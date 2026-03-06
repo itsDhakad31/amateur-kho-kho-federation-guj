@@ -1,240 +1,223 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
-const db = new Database("akkfg.db");
-const JWT_SECRET = process.env.JWT_SECRET || "akkfg-secret-key-2026";
+// --- MongoDB Schemas ---
 
-// Initialize DB
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    email TEXT UNIQUE,
-    password TEXT,
-    role TEXT DEFAULT 'Player',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS news (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    summary TEXT,
-    date TEXT,
-    image TEXT
-  );
-  CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    date TEXT,
-    location TEXT,
-    category TEXT,
-    status TEXT
-  );
-  CREATE TABLE IF NOT EXISTS registrations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    unique_id TEXT UNIQUE,
-    name TEXT,
-    dob TEXT,
-    address_city TEXT,
-    address_country TEXT,
-    gender TEXT,
-    email TEXT,
-    mobile TEXT,
-    experience TEXT,
-    role TEXT, -- 'Coach' or 'Student'
-    status TEXT DEFAULT 'Pending',
-    -- Docs
-    doc_photo TEXT,
-    doc_aadhar TEXT,
-    doc_pan TEXT,
-    doc_birth TEXT,
-    -- Student specific professional info
-    level_passing TEXT,
-    year_passing TEXT,
-    coaching_cert TEXT,
-    edu_qualification TEXT,
-    referee_cert TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
+const UserSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'Player' },
+  created_at: { type: Date, default: Date.now }
+});
 
-// Migration: Add missing columns to users table
-const userTableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
-const userColumns = userTableInfo.map(c => c.name);
-if (!userColumns.includes('created_at')) {
-  try {
-    db.prepare("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP").run();
-  } catch (e) {}
-}
+const NewsSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  summary: { type: String, required: true },
+  date: { type: String, required: true },
+  image: { type: String, required: true },
+  created_at: { type: Date, default: Date.now }
+});
 
-// Migration: Add missing columns to registrations table if they don't exist
-const tableInfo = db.prepare("PRAGMA table_info(registrations)").all() as any[];
-const columns = tableInfo.map(c => c.name);
+const EventSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  date: { type: String, required: true },
+  location: { type: String, required: true },
+  category: { type: String, required: true },
+  status: { type: String, default: 'Upcoming' },
+  created_at: { type: Date, default: Date.now }
+});
 
-const requiredColumns = [
-  { name: 'unique_id', type: 'TEXT' },
-  { name: 'address_city', type: 'TEXT' },
-  { name: 'address_country', type: 'TEXT' },
-  { name: 'email', type: 'TEXT' },
-  { name: 'mobile', type: 'TEXT' },
-  { name: 'experience', type: 'TEXT' },
-  { name: 'doc_photo', type: 'TEXT' },
-  { name: 'doc_aadhar', type: 'TEXT' },
-  { name: 'doc_pan', type: 'TEXT' },
-  { name: 'doc_birth', type: 'TEXT' },
-  { name: 'level_passing', type: 'TEXT' },
-  { name: 'year_passing', type: 'TEXT' },
-  { name: 'coaching_cert', type: 'TEXT' },
-  { name: 'edu_qualification', type: 'TEXT' },
-  { name: 'referee_cert', type: 'TEXT' },
-  { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
-];
+const RegistrationSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  dob: { type: String, required: true },
+  address_city: { type: String, required: true },
+  address_country: { type: String, required: true },
+  gender: { type: String, required: true },
+  email: { type: String, required: true },
+  mobile: { type: String, required: true },
+  experience: { type: String, required: true },
+  role: { type: String, required: true },
+  doc_photo: String,
+  doc_aadhar: String,
+  doc_pan: String,
+  doc_birth: String,
+  level_passing: String,
+  year_passing: String,
+  coaching_cert: String,
+  edu_qualification: String,
+  referee_cert: String,
+  status: { type: String, default: 'Pending' },
+  unique_id: String,
+  created_at: { type: Date, default: Date.now }
+});
 
-for (const col of requiredColumns) {
-  if (!columns.includes(col.name)) {
+const User = mongoose.model("User", UserSchema);
+const News = mongoose.model("News", NewsSchema);
+const Event = mongoose.model("Event", EventSchema);
+const Registration = mongoose.model("Registration", RegistrationSchema);
+
+// --- Database Initialization ---
+
+let isConnected = false;
+let initError: string | null = null;
+
+const connectDB = async (retries = 5) => {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    initError = "MONGODB_URI not found in environment variables";
+    console.error(initError);
+    return;
+  }
+
+  while (retries > 0) {
     try {
-      db.prepare(`ALTER TABLE registrations ADD COLUMN ${col.name} ${col.type}`).run();
-      console.log(`Added missing column: ${col.name}`);
-      
-      // If it's unique_id, add a unique index separately
-      if (col.name === 'unique_id') {
-        db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique_id ON registrations(unique_id)`).run();
-      }
-    } catch (e) {
-      console.error(`Failed to add column ${col.name}:`, e);
+      console.log(`Attempting to connect to MongoDB... (${retries} retries left)`);
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 5000 // Fail fast if no server found
+      });
+      isConnected = true;
+      console.log("MongoDB connected successfully");
+      await seedData();
+      return;
+    } catch (error: any) {
+      initError = `MongoDB connection error: ${error.message}`;
+      console.error(initError);
+      retries -= 1;
+      if (retries === 0) break;
+      console.log("Retrying connection in 5 seconds...");
+      await new Promise(res => setTimeout(res, 5000));
     }
   }
-}
-
-// Ensure unique index for unique_id exists
-if (columns.includes('unique_id')) {
-  try {
-    db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique_id ON registrations(unique_id)`).run();
-  } catch (e) {}
-}
-
-// Helper to generate unique ID
-const generateUniqueID = (role: string) => {
-  const prefix = role === 'Coach' ? 'AKKFG-C' : 'AKKFG-S';
-  const count = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE role = ?").get(role) as { count: number };
-  const num = (count.count + 1).toString().padStart(4, '0');
-  return `${prefix}-${num}`;
+  console.error("Failed to connect to MongoDB after multiple attempts.");
 };
 
-// Middleware to verify JWT
-const authenticateToken = (req: any, res: any, next: any) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
-
-// Middleware to verify Admin
-const isAdmin = (req: any, res: any, next: any) => {
-  if (req.user && req.user.role === 'Admin') {
-    next();
-  } else {
-    res.status(403).json({ error: "Admin access required" });
-  }
-};
-
-// Seed data if empty
-const seedAdmin = async () => {
-  const adminEmail = "admin@akkfg.in";
-  const existingAdmin = db.prepare("SELECT * FROM users WHERE email = ?").get(adminEmail);
-  if (!existingAdmin) {
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    db.prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)").run(
-      "Super Admin",
-      adminEmail,
-      hashedPassword,
-      "Admin"
-    );
-    console.log("Admin user seeded: admin@akkfg.in / admin123");
-  }
-};
-seedAdmin();
-
-const newsCount = db.prepare("SELECT COUNT(*) as count FROM news").get() as { count: number };
-if (newsCount.count === 0) {
-  db.prepare("INSERT INTO news (title, summary, date, image) VALUES (?, ?, ?, ?)").run(
-    "State Level Kho-Kho Championship 2026 Announced",
-    "The Amateur Kho-Kho Federation Gujarat is proud to announce the upcoming state championship in Ahmedabad.",
-    "2026-03-15",
-    "https://picsum.photos/seed/khokho1/800/400"
-  );
-  db.prepare("INSERT INTO news (title, summary, date, image) VALUES (?, ?, ?, ?)").run(
-    "New Coaching Certification Program",
-    "Registration is now open for the Level 1 Coaching Certification program starting next month.",
-    "2026-03-10",
-    "https://picsum.photos/seed/coach/800/400"
-  );
-}
-
-const eventCount = db.prepare("SELECT COUNT(*) as count FROM events").get() as { count: number };
-if (eventCount.count === 0) {
-  db.prepare("INSERT INTO events (title, date, location, category, status) VALUES (?, ?, ?, ?, ?)").run(
-    "Gujarat State Senior Championship",
-    "2026-04-05",
-    "Ahmedabad",
-    "Senior",
-    "Upcoming"
-  );
-  db.prepare("INSERT INTO events (title, date, location, category, status) VALUES (?, ?, ?, ?, ?)").run(
-    "U-17 District Tournament",
-    "2026-03-25",
-    "Surat",
-    "U-17",
-    "Upcoming"
-  );
-}
+// ... (rest of the file)
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  
+  // Start DB connection in background
+  connectDB();
 
-  app.use(express.json());
+  // Middleware to check DB connection for API routes
+  app.use('/api', (req, res, next) => {
+    // Allow health checks and debug endpoints even if DB is down
+    if (req.path === '/health' || req.path === '/ping' || req.path.startsWith('/debug')) {
+      return next();
+    }
+    
+    if (!isConnected) {
+      return res.status(503).json({ 
+        error: "Service Unavailable", 
+        message: "Database connection is initializing. Please try again in a moment.",
+        details: initError
+      });
+    }
+    next();
+  });
+
+  // Increase payload limit to handle base64 images
+  app.use(express.json({ limit: '50mb' }));
+  
+  // ... (rest of startServer)
+
+  // Simple health check
+  app.get("/api/ping", (req, res) => {
+    res.json({ message: "pong", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/debug/db", (req, res) => {
+    res.json({
+      dbConnected: isConnected,
+      initError: initError,
+      hasEnvVar: !!process.env.MONGODB_URI
+    });
+  });
+
+  app.post("/api/debug/db/reconnect", async (req, res) => {
+    if (isConnected) {
+      return res.json({ success: true, message: "Already connected" });
+    }
+    console.log("Manual reconnection attempt...");
+    await connectDB();
+    res.json({ 
+      success: isConnected, 
+      error: initError 
+    });
+  });
+
+  app.post("/api/debug/db/reset", async (req, res) => {
+    if (!isConnected) {
+      return res.status(503).json({ error: "Database not connected" });
+    }
+    try {
+      console.log("Resetting database...");
+      await mongoose.connection.dropDatabase();
+      await seedData();
+      res.json({ success: true, message: "Database reset successfully" });
+    } catch (error: any) {
+      console.error("Database reset failed:", error);
+      res.status(500).json({ error: "Reset failed: " + error.message });
+    }
+  });
 
   // Auth Routes
   app.post("/api/auth/register", async (req, res) => {
     const { name, email, password, role } = req.body;
     try {
+      const userExists = await User.findOne({ email });
+      if (userExists) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
-      const info = db.prepare(
-        "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
-      ).run(name, email, hashedPassword, role || 'Player');
+      const newUser = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role: role || 'Player'
+      });
       
-      const user = { id: info.lastInsertRowid, name, email, role: role || 'Player' };
+      const user = { id: newUser._id, name, email, role: newUser.role };
       const token = jwt.sign(user, JWT_SECRET);
       res.json({ user, token });
     } catch (error: any) {
-      if (error.code === 'SQLITE_CONSTRAINT') {
-        res.status(400).json({ error: "Email already exists" });
-      } else {
-        res.status(500).json({ error: "Registration failed" });
-      }
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
     }
   });
 
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
-    
-    if (user && await bcrypt.compare(password, user.password)) {
-      const { password: _, ...userWithoutPassword } = user;
-      const token = jwt.sign(userWithoutPassword, JWT_SECRET);
-      res.json({ user: userWithoutPassword, token });
-    } else {
-      res.status(401).json({ error: "Invalid credentials" });
+    console.log(`Login attempt for: ${email}`);
+    try {
+      const userData = await User.findOne({ email });
+      
+      if (!userData) {
+        console.log(`Login failed: User ${email} not found`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, userData.password);
+      if (isPasswordValid) {
+        console.log(`Login successful: ${email}`);
+        const user = { id: userData._id, name: userData.name, email: userData.email, role: userData.role };
+        const token = jwt.sign(user, JWT_SECRET);
+        res.json({ user, token });
+      } else {
+        console.log(`Login failed: Invalid password for ${email}`);
+        res.status(401).json({ error: "Invalid credentials" });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed" });
     }
   });
 
@@ -243,126 +226,167 @@ async function startServer() {
   });
 
   // API Routes
-  app.get("/api/news", (req, res) => {
-    const news = db.prepare("SELECT * FROM news ORDER BY date DESC").all();
-    res.json(news);
+  app.get("/api/news", async (req, res) => {
+    try {
+      const news = await News.find().sort({ date: -1 });
+      res.json(news.map(n => ({ ...n.toObject(), id: n._id })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch news" });
+    }
   });
 
-  app.get("/api/events", (req, res) => {
-    const events = db.prepare("SELECT * FROM events ORDER BY date ASC").all();
-    res.json(events);
+  app.get("/api/events", async (req, res) => {
+    try {
+      const events = await Event.find().sort({ date: 1 });
+      res.json(events.map(e => ({ ...e.toObject(), id: e._id })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch events" });
+    }
   });
 
-  app.post("/api/admin/events", authenticateToken, isAdmin, (req, res) => {
+  app.post("/api/admin/events", authenticateToken, isAdmin, async (req, res) => {
     const { title, date, location, category, status } = req.body;
     try {
-      const info = db.prepare(
-        "INSERT INTO events (title, date, location, category, status) VALUES (?, ?, ?, ?, ?)"
-      ).run(title, date, location, category, status || 'Upcoming');
-      res.json({ success: true, id: info.lastInsertRowid });
+      const newEvent = await Event.create({
+        title,
+        date,
+        location,
+        category,
+        status: status || 'Upcoming'
+      });
+      res.json({ success: true, id: newEvent._id });
     } catch (error) {
       res.status(500).json({ error: "Failed to create event" });
     }
   });
 
-  app.delete("/api/admin/events/:id", authenticateToken, isAdmin, (req, res) => {
+  app.delete("/api/admin/events/:id", authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-      // Ensure id is a number for SQLite primary key matching
-      const result = db.prepare("DELETE FROM events WHERE id = ?").run(Number(id));
-      if (result.changes > 0) {
-        res.json({ success: true });
-      } else {
-        console.warn(`Attempted to delete non-existent event with ID: ${id}`);
-        res.status(404).json({ error: "Event not found" });
-      }
+      await Event.findByIdAndDelete(id);
+      res.json({ success: true });
     } catch (error) {
       console.error("Delete event error:", error);
       res.status(500).json({ error: "Failed to delete event" });
     }
   });
 
-  app.post("/api/register", (req, res) => {
+  app.post("/api/register", async (req, res) => {
     const data = req.body;
     try {
-      const info = db.prepare(`
-        INSERT INTO registrations (
-          name, dob, address_city, address_country, gender, email, mobile, 
-          experience, role, doc_photo, doc_aadhar, doc_pan, doc_birth,
-          level_passing, year_passing, coaching_cert, edu_qualification, referee_cert
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        data.name, data.dob, data.address_city, data.address_country, data.gender, data.email, data.mobile,
-        data.experience, data.role, data.doc_photo, data.doc_aadhar, data.doc_pan, data.doc_birth,
-        data.level_passing, data.year_passing, data.coaching_cert, data.edu_qualification, data.referee_cert
-      );
-      res.json({ success: true, id: info.lastInsertRowid });
+      const newReg = await Registration.create({
+        ...data,
+        status: 'Pending'
+      });
+      res.json({ success: true, id: newReg._id });
     } catch (error) {
-      console.error(error);
+      console.error("Registration error:", error);
       res.status(500).json({ error: "Registration failed" });
     }
   });
 
-  app.get("/api/registrations/me", authenticateToken, (req: any, res) => {
-    const reg = db.prepare("SELECT * FROM registrations WHERE email = ?").get(req.user.email);
-    res.json(reg || null);
+  app.get("/api/registrations/me", authenticateToken, async (req: any, res) => {
+    try {
+      const reg = await Registration.findOne({ email: req.user.email });
+      if (!reg) return res.json(null);
+      res.json({ ...reg.toObject(), id: reg._id });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch registration" });
+    }
   });
 
   // Admin Routes
-  app.get("/api/admin/registrations", authenticateToken, isAdmin, (req, res) => {
-    const regs = db.prepare("SELECT * FROM registrations ORDER BY created_at DESC").all();
-    res.json(regs);
+  app.get("/api/admin/registrations", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const regs = await Registration.find().sort({ created_at: -1 });
+      res.json(regs.map(r => ({ ...r.toObject(), id: r._id })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch registrations" });
+    }
   });
 
-  app.put("/api/admin/registrations/:id/status", authenticateToken, isAdmin, (req, res) => {
+  app.put("/api/admin/registrations/:id/status", authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     try {
-      if (status === 'Approved') {
-        const reg = db.prepare("SELECT * FROM registrations WHERE id = ?").get(id) as any;
-        if (reg && !reg.unique_id) {
-          const unique_id = generateUniqueID(reg.role);
-          db.prepare("UPDATE registrations SET status = ?, unique_id = ? WHERE id = ?").run(status, unique_id, id);
-        } else {
-          db.prepare("UPDATE registrations SET status = ? WHERE id = ?").run(status, id);
-        }
-      } else {
-        db.prepare("UPDATE registrations SET status = ? WHERE id = ?").run(status, id);
+      const reg = await Registration.findById(id);
+      
+      if (!reg) {
+        return res.status(404).json({ error: "Registration not found" });
       }
+
+      reg.status = status;
+
+      if (status === 'Approved' && !reg.unique_id) {
+        reg.unique_id = await generateUniqueID(reg.role);
+      }
+
+      await reg.save();
       res.json({ success: true });
     } catch (error) {
+      console.error("Update status error:", error);
       res.status(500).json({ error: "Update failed" });
     }
   });
 
-  app.get("/api/admin/stats", authenticateToken, isAdmin, (req, res) => {
-    const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get() as any;
-    const totalRegs = db.prepare("SELECT COUNT(*) as count FROM registrations").get() as any;
-    const pendingRegs = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE status = 'Pending'").get() as any;
-    res.json({
-      users: totalUsers.count,
-      registrations: totalRegs.count,
-      pending: pendingRegs.count
-    });
+  app.delete("/api/admin/registrations/:id", authenticateToken, isAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+      await Registration.findByIdAndDelete(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete registration error:", error);
+      res.status(500).json({ error: "Failed to delete registration" });
+    }
+  });
+
+  app.get("/api/admin/stats", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const userCount = await User.countDocuments();
+      const regCount = await Registration.countDocuments();
+      const pendingCount = await Registration.countDocuments({ status: "Pending" });
+      
+      res.json({
+        users: userCount,
+        registrations: regCount,
+        pending: pendingCount
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
   });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
+    // Start listening immediately
+    const server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
-    app.use(vite.middlewares);
+
+    // Initialize Vite in background
+    (async () => {
+      try {
+        console.log("Initializing Vite middleware...");
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+        console.log("Vite middleware initialized");
+      } catch (e) {
+        console.error("Failed to initialize Vite middleware:", e);
+      }
+    })();
   } else {
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
+    
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
 startServer();
