@@ -356,71 +356,16 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    let isViteReady = false;
-
-    // Middleware to serve loading page until Vite is ready
-    app.use((req, res, next) => {
-      if (isViteReady || req.path.startsWith('/api')) {
-        return next();
-      }
-      
-      // Serve a simple loading page that refreshes
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Starting Server...</title>
-          <meta http-equiv="refresh" content="2">
-          <style>
-            body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f8fafc; color: #334155; }
-            .loader { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .content { text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="content">
-            <div class="loader" style="margin: 0 auto 20px;"></div>
-            <h2>Server is warming up...</h2>
-            <p>Please wait a moment while we initialize the application.</p>
-          </div>
-        </body>
-        </html>
-      `);
-    });
-
-    // Start listening immediately
-    const server = app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-
-    // Initialize Vite in background
-    (async () => {
-      try {
-        console.log("Initializing Vite middleware...");
-        const vite = await createViteServer({
-          server: { middlewareMode: true },
-          appType: "spa",
-        });
-        app.use(vite.middlewares);
-        isViteReady = true;
-        console.log("Vite middleware initialized");
-      } catch (e) {
-        console.error("Failed to initialize Vite middleware:", e);
-      }
-    })();
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
-    
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+  // Serve static files from dist
+  app.use(express.static(path.join(__dirname, "dist")));
+  app.get("*", (req, res) => {
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not Found' });
+    res.sendFile(path.join(__dirname, "dist", "index.html"));
+  });
+  
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
 startServer();
