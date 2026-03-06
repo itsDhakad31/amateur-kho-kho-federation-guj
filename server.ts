@@ -67,7 +67,7 @@ const Registration = mongoose.model("Registration", RegistrationSchema);
 let isConnected = false;
 let initError: string | null = null;
 
-const connectDB = async (retries = 5) => {
+const connectDB = async (retries = 10) => { // Increased retries
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     initError = "MONGODB_URI not found in environment variables";
@@ -79,7 +79,7 @@ const connectDB = async (retries = 5) => {
     try {
       console.log(`Attempting to connect to MongoDB... (${retries} retries left)`);
       await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 5000 // Fail fast if no server found
+        serverSelectionTimeoutMS: 3000 // Fail faster
       });
       isConnected = true;
       console.log("MongoDB connected successfully");
@@ -90,8 +90,8 @@ const connectDB = async (retries = 5) => {
       console.error(initError);
       retries -= 1;
       if (retries === 0) break;
-      console.log("Retrying connection in 5 seconds...");
-      await new Promise(res => setTimeout(res, 5000));
+      console.log("Retrying connection in 1 second..."); // Faster retry
+      await new Promise(res => setTimeout(res, 1000));
     }
   }
   console.error("Failed to connect to MongoDB after multiple attempts.");
@@ -358,6 +358,39 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    let isViteReady = false;
+
+    // Middleware to serve loading page until Vite is ready
+    app.use((req, res, next) => {
+      if (isViteReady || req.path.startsWith('/api')) {
+        return next();
+      }
+      
+      // Serve a simple loading page that refreshes
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Starting Server...</title>
+          <meta http-equiv="refresh" content="2">
+          <style>
+            body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f8fafc; color: #334155; }
+            .loader { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            .content { text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="content">
+            <div class="loader" style="margin: 0 auto 20px;"></div>
+            <h2>Server is warming up...</h2>
+            <p>Please wait a moment while we initialize the application.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    });
+
     // Start listening immediately
     const server = app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
@@ -372,6 +405,7 @@ async function startServer() {
           appType: "spa",
         });
         app.use(vite.middlewares);
+        isViteReady = true;
         console.log("Vite middleware initialized");
       } catch (e) {
         console.error("Failed to initialize Vite middleware:", e);
